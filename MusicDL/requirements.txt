@@ -1,0 +1,5 @@
+yt-dlp
+spotipy
+rich
+mutagen
+eyed3 
