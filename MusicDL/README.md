@@ -8,6 +8,14 @@ A modern desktop app to download music from YouTube and Spotify links.
 - Batch download, progress/status in GUI
 - No command line needed
 
+## Important Note About Spotify Playlists
+🚫 **You cannot access certain official Spotify playlists via the API unless:**
+- You own the playlist
+- It's a user-generated public playlist
+- It's not part of Spotify's curated or region-locked playlists (like Today's Top Hits)
+
+Spotify restricts access to some playlists via their Web API (even though they're visible on the website/app). If you get a 404 or missing tracks, this is likely the reason.
+
 ## Setup
 1. Install Python 3.8+
 2. Install dependencies:
