@@ -7,6 +7,9 @@ from mutagen.mp4 import MP4, MP4Cover
 from mutagen.oggvorbis import OggVorbis
 from mutagen.id3 import ID3, APIC, error as ID3Error
 import re
+import time
+from mutagen.mp3 import MP3
+from mutagen.id3 import ID3, ID3NoHeaderError
 
 def tag_audio_file(filepath, metadata, audio_format):
     try:
@@ -111,10 +114,17 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
         if file_exists(out_dir, metadata['artist'], metadata['title'], audio_format):
             status_callback(f"Skipped (already exists): {metadata['artist']} - {metadata['title']}")
             return True
+    progress_event_received = {'flag': False}
+    def wrapped_status_callback(d):
+        if isinstance(d, dict) and d.get('status') == 'downloading':
+            progress_event_received['flag'] = True
+        status_callback(d)
+    # Use artist and title in the output filename for uniqueness
     ydl_opts = {
-        'outtmpl': os.path.join(out_dir, '%(title)s.%(ext)s'),
+        'outtmpl': os.path.join(out_dir, '%(artist)s - %(title)s.%(ext)s'),
         'quiet': True,
-        'progress_hooks': [lambda d: status_callback(d.get('status', ''))],
+        'no_warnings': True,
+        'progress_hooks': [wrapped_status_callback],
         'keepvideo': False,
         'keepaudio': False,
     }
@@ -134,11 +144,22 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             result = ydl.download([link])
-        # Tag the file if metadata is provided
-        if mode == 'audio' and audio_format != 'original' and metadata:
-            for file in os.listdir(out_dir):
-                if file.lower().endswith('.' + audio_format):
-                    tag_audio_file(os.path.join(out_dir, file), metadata, audio_format)
+        # If no progress event was received, warn the GUI
+        if not progress_event_received['flag']:
+            status_callback('Warning: No progress events received from yt-dlp. Progress bar may not update.')
+        # Tag only the file that was just created
+        if mode == 'audio' and audio_format != 'original' and metadata and 'artist' in metadata and 'title' in metadata:
+            expected_filename = f"{metadata['artist']} - {metadata['title']}.{audio_format}"
+            file_path = os.path.join(out_dir, expected_filename)
+            if os.path.exists(file_path):
+                for _ in range(10):  # Try for up to 10 seconds
+                    try:
+                        with open(file_path, 'ab') as f:
+                            pass
+                        break
+                    except OSError:
+                        time.sleep(1)
+                tag_audio_file(file_path, metadata, audio_format)
         # Manual cleanup: remove any leftover .webm files
         for file in os.listdir(out_dir):
             if file.lower().endswith('.webm'):
@@ -149,4 +170,75 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
         return True
     except Exception as e:
         status_callback(f'yt-dlp error: {e}')
-        return False 
+        return False
+
+if __name__ == '__main__':
+    import sys
+    import glob
+    import requests
+    import spotipy
+    from spotipy.oauth2 import SpotifyClientCredentials
+    import json
+
+    if '--clear-metadata' in sys.argv:
+        downloads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'downloads'))
+        files = glob.glob(os.path.join(downloads_dir, '*.mp3'))
+        print(f"Found {len(files)} mp3 files in downloads.")
+        for file_path in files:
+            try:
+                # Remove all ID3 tags
+                try:
+                    audio = ID3(file_path)
+                    audio.delete()
+                    print(f"Cleared metadata: {os.path.basename(file_path)}")
+                except ID3NoHeaderError:
+                    print(f"No metadata to clear: {os.path.basename(file_path)}")
+            except Exception as e:
+                print(f"Error clearing {os.path.basename(file_path)}: {e}")
+        sys.exit(0)
+
+    # Load Spotify credentials
+    cred_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'spotify_credentials.json')
+    with open(cred_path, 'r') as f:
+        creds = json.load(f)
+    sp = spotipy.Spotify(auth_manager=SpotifyClientCredentials(
+        client_id=creds['client_id'],
+        client_secret=creds['client_secret']
+    ))
+
+    downloads_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'downloads'))
+    files = glob.glob(os.path.join(downloads_dir, '*.mp3'))
+    print(f"Found {len(files)} mp3 files in downloads.")
+
+    for file_path in files:
+        filename = os.path.basename(file_path)
+        # Try to parse artist and title from filename: 'Artist - Title.mp3'
+        if ' - ' in filename:
+            artist, title = filename.rsplit('.mp3', 1)[0].split(' - ', 1)
+        else:
+            print(f"Skipping (cannot parse): {filename}")
+            continue
+        # Search Spotify for track
+        query = f"track:{title} artist:{artist}"
+        results = sp.search(q=query, type='track', limit=1)
+        if results['tracks']['items']:
+            t = results['tracks']['items'][0]
+            album = t['album']['name']
+            date = t['album']['release_date']
+            genre = ''  # Spotify API does not provide genre per track
+            tracknumber = t['track_number']
+            # Fetch cover art
+            cover_art = None
+            if t['album']['images']:
+                cover_url = t['album']['images'][0]['url']
+                try:
+                    resp = requests.get(cover_url)
+                    if resp.status_code == 200:
+                        cover_art = resp.content
+                except Exception:
+                    cover_art = None
+            metadata = {'title': title, 'artist': artist, 'album': album, 'date': date, 'genre': genre, 'tracknumber': tracknumber, 'cover_art': cover_art}
+            tag_audio_file(file_path, metadata, 'mp3')
+            print(f"Tagged: {filename}")
+        else:
+            print(f"No Spotify match for: {filename}") 

@@ -3,8 +3,9 @@ import json
 import requests
 from spotipy.oauth2 import SpotifyClientCredentials
 import spotipy
-from downloader.youtube_downloader import download_youtube
+from downloader.youtube_downloader import download_youtube, tag_audio_file
 from downloader.utils import search_youtube
+import time
 
 def get_spotify_client():
     cred_path = os.path.join(os.path.dirname(__file__), '..', 'config', 'spotify_credentials.json')
@@ -66,6 +67,20 @@ def download_spotify(link, mode, status_callback, download_dir=None, audio_forma
         if yt_url:
             status_callback(f"Downloading: {title} by {artist}")
             download_youtube(yt_url, mode, status_callback, download_dir, audio_format, metadata)
+            # Wait for file to be fully available before next track and tag only the correct file
+            if download_dir:
+                expected_filename = f"{artist} - {title}.{audio_format}"
+                file_path = os.path.join(download_dir, expected_filename)
+                if os.path.exists(file_path):
+                    for _ in range(10):
+                        try:
+                            with open(file_path, 'ab') as f:
+                                pass
+                            break
+                        except OSError:
+                            time.sleep(1)
+                    # Tag the file with the correct metadata (in case yt-dlp missed it)
+                    tag_audio_file(file_path, metadata, audio_format)
         else:
             status_callback(f"YouTube search failed for: {title} by {artist}")
 
