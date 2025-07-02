@@ -2,8 +2,8 @@ import yt_dlp
 import os
 import subprocess
 
-def download_youtube(link, mode, status_callback):
-    out_dir = os.path.join(os.path.dirname(__file__), '..', 'downloads')
+def download_youtube(link, mode, status_callback, download_dir=None, audio_format='mp3'):
+    out_dir = download_dir or os.path.join(os.path.dirname(__file__), '..', 'downloads')
     os.makedirs(out_dir, exist_ok=True)
     ydl_opts = {
         'outtmpl': os.path.join(out_dir, '%(title)s.%(ext)s'),
@@ -11,14 +11,16 @@ def download_youtube(link, mode, status_callback):
         'progress_hooks': [lambda d: status_callback(d.get('status', ''))],
     }
     if mode == 'audio':
-        ydl_opts.update({
-            'format': 'bestaudio/best',
-            'postprocessors': [{
+        if audio_format == 'original':
+            ydl_opts['format'] = 'bestaudio/best'
+        else:
+            ydl_opts['format'] = 'bestaudio/best'
+            postproc = {
                 'key': 'FFmpegExtractAudio',
-                'preferredcodec': 'mp3',
-                'preferredquality': '320',
-            }],
-        })
+                'preferredcodec': audio_format,
+                'preferredquality': '0' if audio_format in ['flac', 'wav'] else '320',
+            }
+            ydl_opts['postprocessors'] = [postproc]
     else:
         ydl_opts['format'] = 'bestvideo+bestaudio/best'
     try:

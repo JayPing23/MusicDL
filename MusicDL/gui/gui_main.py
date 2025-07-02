@@ -40,6 +40,7 @@ class MusicDLApp(tk.Tk):
         self.resizable(False, False)
         self.theme = 'light'
         self.colors = LIGHT_THEME.copy()
+        self.download_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'downloads'))
         self.configure(bg=self.colors['bg'])
         self.style = ttk.Style(self)
         self.set_theme(self.theme)
@@ -91,6 +92,16 @@ class MusicDLApp(tk.Tk):
         self.card_frame = tk.Frame(self, bg=self.colors['card_bg'], bd=2, relief='groove')
         self.card_frame.pack(padx=30, pady=30, fill='both', expand=True)
 
+        # Download folder selection
+        folder_frame = tk.Frame(self.card_frame, bg=self.colors['card_bg'])
+        folder_frame.pack(anchor='w', padx=20, pady=(15, 0))
+        tk.Label(folder_frame, text='Download folder:', bg=self.colors['card_bg'], fg=self.colors['fg'], font=('Segoe UI', 10, 'bold')).pack(side='left')
+        self.folder_path_var = tk.StringVar(value=self.download_dir)
+        self.folder_path_label = tk.Label(folder_frame, textvariable=self.folder_path_var, bg=self.colors['card_bg'], fg=self.colors['accent'], font=('Segoe UI', 10, 'italic'))
+        self.folder_path_label.pack(side='left', padx=(8, 0))
+        self.folder_btn = tk.Button(folder_frame, text='Browse...', command=self.choose_folder, bg=self.colors['button_bg'], fg=self.colors['button_fg'], font=('Segoe UI', 9, 'bold'), bd=0, activebackground=self.colors['accent'])
+        self.folder_btn.pack(side='left', padx=8)
+
         # Link input
         self.link_label = tk.Label(self.card_frame, text='Paste YouTube/Spotify links (one per line):', bg=self.colors['card_bg'], fg=self.colors['fg'], font=('Segoe UI', 11, 'bold'))
         self.link_label.pack(anchor='w', padx=20, pady=(20,0))
@@ -108,6 +119,15 @@ class MusicDLApp(tk.Tk):
         ttk.Radiobutton(mode_frame, text='Audio (MP3 320kbps)', variable=self.mode, value='audio', style='TRadiobutton').pack(side='left', padx=10)
         ttk.Radiobutton(mode_frame, text='Full Video', variable=self.mode, value='video', style='TRadiobutton').pack(side='left', padx=10)
         mode_frame.pack(anchor='w', padx=20, pady=5)
+
+        # Audio format selection
+        format_frame = tk.Frame(self.card_frame, bg=self.colors['card_bg'])
+        format_frame.pack(anchor='w', padx=20, pady=(0, 10))
+        tk.Label(format_frame, text='Audio format:', bg=self.colors['card_bg'], fg=self.colors['fg'], font=('Segoe UI', 10, 'bold')).pack(side='left')
+        self.format_var = tk.StringVar(value='mp3')
+        format_options = ['mp3', 'opus', 'm4a', 'flac', 'wav', 'original']
+        self.format_menu = ttk.Combobox(format_frame, textvariable=self.format_var, values=format_options, state='readonly', width=10)
+        self.format_menu.pack(side='left', padx=8)
 
         # Download button
         self.download_btn = tk.Button(self.card_frame, text='⬇ Download', command=self.start_download, bg=self.colors['button_bg'], fg=self.colors['button_fg'], font=('Segoe UI', 12, 'bold'), bd=0, activebackground=self.colors['accent'])
@@ -133,6 +153,12 @@ class MusicDLApp(tk.Tk):
                 links = f.read()
             self.link_text.insert('1.0', links.strip() + '\n')
 
+    def choose_folder(self):
+        folder = filedialog.askdirectory(initialdir=self.download_dir, title='Select Download Folder')
+        if folder:
+            self.download_dir = folder
+            self.folder_path_var.set(folder)
+
     def start_download(self):
         links = self.link_text.get('1.0', 'end').strip().split('\n')
         links = [l.strip() for l in links if l.strip()]
@@ -140,18 +166,19 @@ class MusicDLApp(tk.Tk):
             messagebox.showerror('Error', 'Please enter at least one link.')
             return
         mode = self.mode.get()
-        Thread(target=self.download_links, args=(links, mode), daemon=True).start()
+        audio_format = self.format_var.get()
+        Thread(target=self.download_links, args=(links, mode, self.download_dir, audio_format), daemon=True).start()
 
-    def download_links(self, links, mode):
+    def download_links(self, links, mode, download_dir, audio_format):
         self.set_status('Starting downloads...')
         total = len(links)
         for idx, link in enumerate(links, 1):
             self.set_progress((idx-1)/total*100)
             try:
                 if 'youtube.com' in link or 'youtu.be' in link:
-                    result = download_youtube(link, mode, self.log_status)
+                    result = download_youtube(link, mode, self.log_status, download_dir, audio_format)
                 elif 'spotify.com' in link:
-                    result = download_spotify(link, mode, self.log_status)
+                    result = download_spotify(link, mode, self.log_status, download_dir, audio_format)
                 else:
                     self.log_status(f'Invalid link: {link}')
                     continue

@@ -14,7 +14,7 @@ def get_spotify_client():
         client_secret=creds['client_secret']
     ))
 
-def download_spotify(link, mode, status_callback):
+def download_spotify(link, mode, status_callback, download_dir=None, audio_format='mp3'):
     sp = get_spotify_client()
     tracks = []
     if 'track' in link:
@@ -36,7 +36,7 @@ def download_spotify(link, mode, status_callback):
         yt_url = search_youtube(query)
         if yt_url:
             status_callback(f"Downloading: {title} by {artist}")
-            download_youtube(yt_url, mode, status_callback)
+            download_youtube(yt_url, mode, status_callback, download_dir, audio_format)
         else:
             status_callback(f"YouTube search failed for: {title} by {artist}")
     return True 
