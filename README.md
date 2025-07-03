@@ -54,6 +54,7 @@
    pip install -r MusicDL/requirements.txt
    ```
 3. **Install [ffmpeg](https://ffmpeg.org/download.html)** and add it to your PATH (required for audio conversion).
+   - **Windows users:** Download the latest release from [gyan.dev/ffmpeg/builds](https://www.gyan.dev/ffmpeg/builds/). The "release essentials" build is usually sufficient for most users. See their site for details.
 4. **Create a Spotify app:**
    - Go to [Spotify Developer Dashboard](https://developer.spotify.com/dashboard/)
    - Create an app and copy your `client_id` and `client_secret`.
@@ -115,3 +116,14 @@ All downloads are saved to the `MusicDL/downloads/` folder by default.
 
 ## License
 MIT License
+
+## ⚠️ Important Note About Spotify Playlists
+
+> 🚫 **Spotify API Limitations:**  
+> Due to Spotify's API restrictions, you **cannot access certain official Spotify playlists** unless:
+> - You own the playlist
+> - It's a user-generated public playlist
+> - It's not part of Spotify's curated or region-locked playlists (like "Today's Top Hits")
+>
+> If you get a **404 error** or notice missing tracks, this is likely the reason.  
+> **Tip:** Try using personal or public playlists you've created or followed for best results.
