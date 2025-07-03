@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MusicDL Web - YouTube Downloader</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gradient-to-br from-blue-100 to-indigo-200 min-h-screen flex flex-col items-center justify-center">
+    <div class="bg-white/80 shadow-xl rounded-xl p-8 max-w-lg w-full mt-12">
+        <h1 class="text-3xl font-bold text-indigo-700 mb-2 text-center">MusicDL Web</h1>
+        <p class="text-gray-700 text-center mb-6">Download YouTube videos or playlists as MP3 or MP4. Simple, fast, and beautiful.</p>
+        <form action="/download" method="post" class="flex flex-col gap-4">
+            <input type="text" name="youtube_url" placeholder="Paste YouTube video or playlist URL..." required class="px-4 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+            <select name="format" class="px-4 py-2 rounded border border-gray-300 focus:outline-none focus:ring-2 focus:ring-indigo-400">
+                <option value="mp3">MP3 (audio only)</option>
+                <option value="mp4">MP4 (video)</option>
+            </select>
+            <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded transition">Convert & Download</button>
+        </form>
+    </div>
+    <footer class="mt-10 text-gray-500 text-sm">&copy; 2024 MusicDL Web</footer>
+</body>
+</html> 
