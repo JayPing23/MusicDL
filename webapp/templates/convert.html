@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Convert Audio Files - MusicDL Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <script>
+        function showSpinner() {
+            document.getElementById('musicdl-spinner').classList.remove('hidden');
+        }
+    </script>
+</head>
+<body>
+    <div class="musicdl-card">
+        <div class="musicdl-logo">🔄</div>
+        <h1 class="musicdl-header">Convert Audio Files</h1>
+        <p class="musicdl-desc">Upload one or more audio files and convert them to your desired format.<br>Supported: mp3, m4a, flac, wav, opus, ogg, aac.</p>
+        <form action="/convert" method="post" enctype="multipart/form-data" class="musicdl-form w-full" onsubmit="showSpinner()">
+            <input type="file" name="files" multiple required accept=".mp3,.m4a,.flac,.wav,.opus,.ogg,.aac">
+            <select name="format">
+                {% for fmt in formats %}
+                <option value="{{ fmt }}">{{ fmt|upper }}</option>
+                {% endfor %}
+            </select>
+            <button type="submit">Convert</button>
+        </form>
+        <div id="musicdl-spinner" class="musicdl-spinner hidden"></div>
+        <div class="musicdl-footer">&copy; 2024 MusicDL Web</div>
+    </div>
+</body>
+</html> 

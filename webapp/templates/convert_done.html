@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Conversion Complete - MusicDL Web</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+    <div class="musicdl-card">
+        <div class="musicdl-logo">✅</div>
+        <h1 class="musicdl-header">Conversion Complete</h1>
+        <p class="musicdl-desc">Your files have been converted! Download them below:</p>
+        <ul class="w-full mb-4">
+            {% for file in files %}
+            <li class="mb-2"><a href="{{ file }}" class="text-indigo-600 hover:underline font-semibold" download>Download {{ file.split('/')[-1] }}</a></li>
+            {% endfor %}
+        </ul>
+        <a href="/convert" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-6 rounded-xl transition text-lg shadow-lg">Convert More Files</a>
+        <div class="musicdl-footer">&copy; 2024 MusicDL Web</div>
+    </div>
+</body>
+</html> 

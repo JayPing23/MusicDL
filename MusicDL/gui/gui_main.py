@@ -119,7 +119,7 @@ class MusicDLApp(ctk.CTk):
         self.sidebar.pack(side="left", fill="y")
         self.container = ctk.CTkFrame(self, fg_color="#f4f6fb")
         self.container.pack(side="right", fill="both", expand=True)
-        for F in (LandingPage, DownloadPage, HistoryPage, SettingsPage, AboutPage, PlayerPage):
+        for F in (LandingPage, DownloadPage, HistoryPage, SettingsPage, AboutPage, PlayerPage, ConvertPage):
             frame = F(parent=self.container, controller=self)
             self.frames[F.__name__] = frame
             frame.place(relx=0, rely=0, relwidth=1, relheight=1)
@@ -157,6 +157,7 @@ class Sidebar(ctk.CTkFrame):
         nav = [
             ("Home", "LandingPage", "🏠"),
             ("Download", "DownloadPage", "⬇️"),
+            ("Convert", "ConvertPage", "🔄"),
             ("Player", "PlayerPage", "🎧"),
             ("History", "HistoryPage", "🕑"),
             ("Settings", "SettingsPage", "⚙️"),
@@ -233,6 +234,7 @@ class LandingPage(ctk.CTkFrame):
         self.info.configure(text_color=PALETTE['text_secondary'])
 
 # --- DOWNLOAD PAGE THEME REFACTOR ---
+AUDIO_FORMATS = ["mp3", "m4a", "flac", "wav", "opus", "ogg", "aac"]
 class DownloadPage(ctk.CTkFrame):
     def __init__(self, parent, controller):
         super().__init__(parent, fg_color=PALETTE['bg'])
@@ -243,6 +245,10 @@ class DownloadPage(ctk.CTkFrame):
         self.header.pack(pady=(30, 10), anchor='center')
         self.link_entry = ctk.CTkEntry(center_frame, placeholder_text="Paste YouTube/Spotify link here...", width=500, height=40, font=("Segoe UI", 16))
         self.link_entry.pack(pady=10, anchor='center')
+        # Add format dropdown
+        self.format_var = ctk.StringVar(value=AUDIO_FORMATS[0])
+        self.format_menu = ctk.CTkOptionMenu(center_frame, values=AUDIO_FORMATS, variable=self.format_var, width=180, font=("Segoe UI", 14))
+        self.format_menu.pack(pady=8)
         self.add_btn = ctk.CTkButton(center_frame, text="Add to Queue", fg_color=PALETTE['accent'], hover_color=PALETTE['accent_hover'], font=("Segoe UI", 16, "bold"), corner_radius=20, width=180, height=40, command=self.add_to_queue)
         self.add_btn.pack(pady=(0, 10), anchor='center')
         self.queue_frame = ctk.CTkFrame(center_frame, fg_color=PALETTE['card'], corner_radius=20)
@@ -275,9 +281,10 @@ class DownloadPage(ctk.CTkFrame):
 
     def add_to_queue(self):
         link = self.link_entry.get().strip()
+        fmt = self.format_var.get()
         if link:
-            self.queue.append(link)
-            lbl = ctk.CTkLabel(self.queue_frame, text=link, font=("Segoe UI", 14), text_color=PALETTE['text'], anchor="w")
+            self.queue.append((link, fmt))
+            lbl = ctk.CTkLabel(self.queue_frame, text=f"{link} [{fmt}]", font=("Segoe UI", 14), text_color=PALETTE['text'], anchor="w")
             lbl.pack(fill="x", padx=10, pady=4)
             self.queue_labels.append(lbl)
             self.link_entry.delete(0, "end")
@@ -302,14 +309,14 @@ class DownloadPage(ctk.CTkFrame):
             self.update_idletasks()
         def do_download():
             nonlocal completed
-            for i, link in enumerate(self.queue):
+            for i, (link, fmt) in enumerate(self.queue):
                 self.status_label.configure(text=f"Processing {i+1}/{total}")
                 self.progress_bar.set(i/total)
                 self.update_idletasks()
                 if 'spotify.com' in link:
-                    download_spotify(link, 'audio', status_callback, self.controller.download_dir, 'mp3')
+                    download_spotify(link, 'audio', status_callback, self.controller.download_dir, fmt)
                 else:
-                    download_youtube(link, 'audio', status_callback, self.controller.download_dir, 'mp3')
+                    download_youtube(link, 'audio', status_callback, self.controller.download_dir, fmt)
                 completed += 1
                 self.progress_bar.set(completed/total)
                 self.status_label.configure(text=f"Completed {completed}/{total}")
@@ -948,6 +955,71 @@ class PlayerPage(ctk.CTkFrame):
             pygame.mixer.music.play(start=seek_sec)
             self.is_playing = True
             self.play_btn.configure(text="⏸")
+
+class ConvertPage(ctk.CTkFrame):
+    def __init__(self, parent, controller):
+        super().__init__(parent, fg_color=PALETTE['bg'])
+        self.controller = controller
+        center_frame = ctk.CTkFrame(self, fg_color=PALETTE['bg'])
+        center_frame.pack(expand=True, fill='both')
+        self.header = ctk.CTkLabel(center_frame, text="Convert Audio Files", font=("Segoe UI", 32, "bold"), text_color=PALETTE['accent'])
+        self.header.pack(pady=(30, 10), anchor='center')
+        self.file_list = []
+        self.file_label = ctk.CTkLabel(center_frame, text="No files selected", font=("Segoe UI", 14), text_color=PALETTE['text'])
+        self.file_label.pack(pady=10, anchor='center')
+        self.select_btn = ctk.CTkButton(center_frame, text="Select Files", fg_color=PALETTE['accent'], hover_color=PALETTE['accent_hover'], font=("Segoe UI", 16, "bold"), corner_radius=20, width=180, height=40, command=self.select_files)
+        self.select_btn.pack(pady=(0, 10), anchor='center')
+        self.format_var = ctk.StringVar(value=AUDIO_FORMATS[0])
+        self.format_menu = ctk.CTkOptionMenu(center_frame, values=AUDIO_FORMATS, variable=self.format_var, width=180, font=("Segoe UI", 14))
+        self.format_menu.pack(pady=8)
+        self.convert_btn = ctk.CTkButton(center_frame, text="Convert", fg_color=PALETTE['accent'], hover_color=PALETTE['accent_hover'], font=("Segoe UI", 18, "bold"), corner_radius=30, width=220, height=50, command=self.convert_files)
+        self.convert_btn.pack(pady=20, anchor='center')
+        self.progress_bar = ctk.CTkProgressBar(center_frame, width=500, height=20, corner_radius=10, progress_color=PALETTE['accent'])
+        self.progress_bar.set(0)
+        self.progress_bar.pack(pady=(10, 0), anchor='center')
+        self.status_label = ctk.CTkLabel(center_frame, text="", font=("Segoe UI", 16), text_color=PALETTE['text'])
+        self.status_label.pack(pady=(10, 0), anchor='center')
+        self.center_frame = center_frame
+
+    def select_files(self):
+        import tkinter.filedialog
+        files = tkinter.filedialog.askopenfilenames(title="Select audio files", filetypes=[("Audio Files", "*.mp3 *.m4a *.flac *.wav *.opus *.ogg *.aac")])
+        if files:
+            self.file_list = list(files)
+            self.file_label.configure(text=f"{len(self.file_list)} file(s) selected")
+        else:
+            self.file_list = []
+            self.file_label.configure(text="No files selected")
+
+    def convert_files(self):
+        import subprocess
+        if not self.file_list:
+            self.status_label.configure(text="No files selected!")
+            return
+        fmt = self.format_var.get()
+        total = len(self.file_list)
+        self.progress_bar.set(0)
+        self.status_label.configure(text="Starting conversion...")
+        self.update_idletasks()
+        def do_convert():
+            completed = 0
+            for file in self.file_list:
+                out_dir = self.controller.download_dir
+                base = os.path.splitext(os.path.basename(file))[0]
+                out_file = os.path.join(out_dir, f"{base}.{fmt}")
+                try:
+                    subprocess.run(["ffmpeg", "-y", "-i", file, out_file], check=True)
+                    completed += 1
+                    self.progress_bar.set(completed/total)
+                    self.status_label.configure(text=f"Converted {completed}/{total}")
+                except Exception as e:
+                    self.status_label.configure(text=f"Error: {e}")
+                self.update_idletasks()
+            self.status_label.configure(text="All conversions finished!")
+            self.file_label.configure(text="No files selected")
+            self.file_list = []
+        import threading
+        threading.Thread(target=do_convert, daemon=True).start()
 
 if __name__ == "__main__":
     app = MusicDLApp()

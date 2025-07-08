@@ -8,19 +8,65 @@
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
+    <button class="musicdl-toggle" id="theme-toggle" aria-label="Toggle light/dark mode">🌙</button>
+    <nav id="side-nav" class="musicdl-sidenav" aria-label="Main navigation">
+        <button id="nav-toggle" class="musicdl-sidenav-toggle" aria-label="Toggle navigation">☰</button>
+        <ul class="musicdl-sidenav-list">
+            <li><a href="/" class="musicdl-sidenav-link">Home</a></li>
+            <li><a href="/convert" class="musicdl-sidenav-link">Online Converter</a></li>
+            <li><a href="#about" class="musicdl-sidenav-link">About Me</a></li>
+        </ul>
+    </nav>
+    <section class="musicdl-hero">
+        <div class="musicdl-hero-content">
+            <div class="musicdl-logo">🎵</div>
+            <h1 class="musicdl-header">MusicDL Web</h1>
+            <p class="musicdl-desc">Download YouTube videos or playlists as <span class="text-indigo-600 font-semibold">MP3</span> or <span class="text-pink-500 font-semibold">MP4</span>.<br>Simple, fast, and beautiful.</p>
+        </div>
+    </section>
     <div class="musicdl-card">
-        <div class="musicdl-logo">🎵</div>
-        <h1 class="musicdl-header">MusicDL Web</h1>
-        <p class="musicdl-desc">Download YouTube videos or playlists as <span class="text-indigo-600 font-semibold">MP3</span> or <span class="text-pink-500 font-semibold">MP4</span>.<br>Simple, fast, and beautiful.</p>
         <form action="/download" method="post" class="musicdl-form w-full">
-            <input type="text" name="youtube_url" placeholder="Paste YouTube video or playlist URL..." required>
-            <select name="format">
+            <input type="text" name="youtube_url" placeholder="Paste YouTube video or playlist URL..." required aria-label="YouTube URL">
+            <select name="format" aria-label="Select format">
                 <option value="mp3">MP3 (audio only)</option>
                 <option value="mp4">MP4 (video)</option>
             </select>
             <button type="submit">Convert & Download</button>
         </form>
+        <a href="/convert" class="musicdl-convert-link" aria-label="Go to Online Audio Converter">🎧 Online Audio Converter</a>
         <div class="musicdl-footer">&copy; 2024 MusicDL Web</div>
     </div>
+    <section id="about" class="musicdl-about">
+        <h2>About Me</h2>
+        <p>Hi! I'm the creator of MusicDL Web, passionate about making music accessible and easy to download for everyone. This project is open source and built with love using Python, FastAPI, and modern web technologies.</p>
+    </section>
+    <script>
+    // Light/Dark mode toggle logic
+    const toggle = document.getElementById('theme-toggle');
+    const body = document.body;
+    function setTheme(mode) {
+        if (mode === 'dark') {
+            body.classList.add('dark');
+            toggle.textContent = '☀️';
+        } else {
+            body.classList.remove('dark');
+            toggle.textContent = '🌙';
+        }
+    }
+    // Load theme from localStorage
+    const saved = localStorage.getItem('musicdl-theme');
+    setTheme(saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    toggle.onclick = () => {
+        const isDark = body.classList.toggle('dark');
+        localStorage.setItem('musicdl-theme', isDark ? 'dark' : 'light');
+        setTheme(isDark ? 'dark' : 'light');
+    };
+    // Collapsible side nav logic
+    const nav = document.getElementById('side-nav');
+    const navToggle = document.getElementById('nav-toggle');
+    navToggle.onclick = () => {
+        nav.classList.toggle('open');
+    };
+    </script>
 </body>
 </html> 

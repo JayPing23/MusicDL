@@ -1,5 +1,5 @@
-from fastapi import FastAPI, Request, Form, BackgroundTasks
-from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse
+from fastapi import FastAPI, Request, Form, BackgroundTasks, UploadFile, File
+from fastapi.responses import HTMLResponse, RedirectResponse, FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 import os
@@ -9,6 +9,7 @@ from typing import Dict
 import threading
 import time
 import logging
+import shutil
 
 musicdlWeb = FastAPI()
 
@@ -144,4 +145,35 @@ def serve_file(filename: str):
         ext = os.path.splitext(filename)[1].lower()
         media_type = 'audio/mpeg' if ext == '.mp3' else 'video/mp4' if ext == '.mp4' else 'application/octet-stream'
         return FileResponse(file_path, media_type=media_type, filename=filename)
-    return HTMLResponse("File not found", status_code=404) 
+    return HTMLResponse("File not found", status_code=404)
+
+ALLOWED_FORMATS = ("mp3", "m4a", "flac", "wav", "opus", "ogg", "aac")
+
+@musicdlWeb.get('/convert', response_class=HTMLResponse)
+def convert_page(request: Request):
+    return templates.TemplateResponse('convert.html', {"request": request, "formats": ALLOWED_FORMATS})
+
+@musicdlWeb.post('/convert')
+async def convert_files(request: Request, files: list[UploadFile] = File(...), format: str = Form(...)):
+    converted_files = []
+    for file in files:
+        input_path = os.path.join(DOWNLOADS_DIR, file.filename)
+        with open(input_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        base = os.path.splitext(file.filename)[0]
+        output_path = os.path.join(DOWNLOADS_DIR, f"{base}.{format}")
+        # Convert with ffmpeg
+        import subprocess
+        try:
+            subprocess.run(["ffmpeg", "-y", "-i", input_path, output_path], check=True)
+            converted_files.append(f"/files/{base}.{format}")
+        except Exception as e:
+            print(f"Conversion error: {e}")
+        # Remove the uploaded file after conversion
+        try:
+            os.remove(input_path)
+        except Exception:
+            pass
+    # Cleanup non-converted files
+    cleanup_downloads(DOWNLOADS_DIR, allowed_exts=tuple(f".{fmt}" for fmt in ALLOWED_FORMATS))
+    return templates.TemplateResponse('convert_done.html', {"request": request, "files": converted_files}) 

@@ -250,7 +250,20 @@ def extract_metadata_from_video(video_info):
         logger.error(f"Failed to extract metadata from video: {e}")
         return {}
 
-def download_youtube(link, mode, status_callback, download_dir=None, audio_format='mp3', metadata=None):
+def cleanup_downloads(download_dir, allowed_exts=(".mp3", ".mp4", ".m4a", ".flac", ".wav", ".opus", ".ogg", ".aac"), retries=3, delay=2):
+    for attempt in range(retries):
+        files_to_delete = [f for f in os.listdir(download_dir) if not f.lower().endswith(allowed_exts)]
+        if not files_to_delete:
+            break
+        for f in files_to_delete:
+            try:
+                os.remove(os.path.join(download_dir, f))
+            except Exception as e:
+                if attempt == retries - 1:
+                    print(f"Failed to delete {f} after {retries} attempts: {e}")
+        time.sleep(delay)
+
+def download_youtube(link, mode, status_callback, download_dir=None, target_format='mp3', metadata=None):
     out_dir = download_dir or os.path.join(os.path.dirname(__file__), '..', 'downloads')
     os.makedirs(out_dir, exist_ok=True)
     
@@ -263,7 +276,7 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
     
     # Duplicate check if metadata is available
     if metadata and 'artist' in metadata and 'title' in metadata:
-        if file_exists(out_dir, metadata['artist'], metadata['title'], audio_format):
+        if file_exists(out_dir, metadata['artist'], metadata['title'], target_format):
             status_callback(f"Skipped (already exists): {metadata['artist']} - {metadata['title']}")
             return True
     
@@ -275,42 +288,21 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
     
     # Optimize yt-dlp options for direct conversion during download
     ydl_opts = {
-        'outtmpl': os.path.join(out_dir, '%(artist)s - %(title)s.%(ext)s'),
+        'format': 'bestaudio/best',
+        'outtmpl': os.path.join(out_dir, '%(title)s.%(ext)s'),
+        'noplaylist': False,
         'quiet': True,
-        'no_warnings': True,
-        'progress_hooks': [wrapped_status_callback],
-        'keepvideo': False,
-        'keepaudio': False,
-        'writethumbnail': True,  # Download thumbnail for cover art
-        'postprocessors': [],  # Initialize empty postprocessors list
     }
-    
-    if mode == 'audio':
-        if audio_format == 'original':
-            # Download best audio format without conversion
-            ydl_opts['format'] = 'bestaudio/best'
-        else:
-            # Download and convert in one step using yt-dlp's built-in conversion
-            ydl_opts['format'] = 'bestaudio/best'
-            
-            # Configure postprocessor for direct conversion
-            postproc = {
-                'key': 'FFmpegExtractAudio',
-                'preferredcodec': audio_format,
-                'preferredquality': '0' if audio_format in ['flac', 'wav'] else '320',
-            }
-            ydl_opts['postprocessors'].append(postproc)
-            
-            # Add metadata embedding postprocessor if metadata is available
-            if metadata:
-                embed_metadata = {
-                    'key': 'FFmpegMetadata',
-                    'add_metadata': True,
-                }
-                ydl_opts['postprocessors'].append(embed_metadata)
-    else:
-        # Video mode - download best quality
-        ydl_opts['format'] = 'bestvideo+bestaudio/best'
+    postprocessors = []
+    # Supported formats for direct yt-dlp conversion
+    yt_dlp_formats = ['mp3', 'm4a', 'flac', 'wav', 'opus', 'ogg', 'aac']
+    if target_format in yt_dlp_formats:
+        postprocessors.append({
+            'key': 'FFmpegExtractAudio',
+            'preferredcodec': target_format,
+            'preferredquality': '192',
+        })
+    ydl_opts['postprocessors'] = postprocessors
     
     try:
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -342,7 +334,7 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
                         metadata = {'title': 'Unknown Title', 'artist': 'Unknown Artist'}
             
             # Download and convert in one step
-            logger.info(f"Starting download with conversion to {audio_format}")
+            logger.info(f"Starting download with conversion to {target_format}")
             result = ydl.download([link])
         
         # If no progress event was received, warn the GUI
@@ -350,8 +342,8 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
             status_callback('Warning: No progress events received from yt-dlp. Progress bar may not update.')
         
         # Tag the converted file with metadata (if not already embedded by postprocessor)
-        if mode == 'audio' and audio_format != 'original' and metadata and 'artist' in metadata and 'title' in metadata:
-            expected_filename = f"{metadata['artist']} - {metadata['title']}.{audio_format}"
+        if target_format != 'original' and metadata and 'artist' in metadata and 'title' in metadata:
+            expected_filename = f"{metadata['artist']} - {metadata['title']}.{target_format}"
             file_path = os.path.join(out_dir, expected_filename)
             if os.path.exists(file_path):
                 # Wait for file to be fully written
@@ -364,7 +356,7 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
                         time.sleep(1)
                 
                 # Tag with metadata (this will overwrite any basic metadata from postprocessor)
-                if tag_audio_file(file_path, metadata, audio_format):
+                if tag_audio_file(file_path, metadata, target_format):
                     logger.info(f"Successfully tagged converted file: {expected_filename}")
                 else:
                     logger.warning(f"Failed to tag converted file: {expected_filename}")
@@ -377,6 +369,18 @@ def download_youtube(link, mode, status_callback, download_dir=None, audio_forma
                 except Exception:
                     pass
         
+        # If the format is not natively supported, convert with ffmpeg
+        if target_format not in yt_dlp_formats:
+            # Find the downloaded file (assume only one new file)
+            files = [f for f in os.listdir(out_dir) if f.lower().endswith(('.mp3', '.m4a', '.flac', '.wav', '.opus', '.ogg', '.aac'))]
+            if files:
+                src_file = os.path.join(out_dir, files[0])
+                dest_file = os.path.splitext(src_file)[0] + f'.{target_format}'
+                subprocess.run(['ffmpeg', '-y', '-i', src_file, dest_file])
+                os.remove(src_file)
+        
+        # Delay and retry cleanup to avoid file-in-use errors
+        cleanup_downloads(out_dir)
         return True
     except Exception as e:
         status_callback(f'yt-dlp error: {e}')
