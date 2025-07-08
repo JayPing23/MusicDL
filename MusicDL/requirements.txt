@@ -6,3 +6,4 @@ eyed3
 customtkinter
 pillow
 pygame
+ 
