@@ -9,37 +9,53 @@
 </head>
 <body>
     <button class="musicdl-toggle" id="theme-toggle" aria-label="Toggle light/dark mode">🌙</button>
-    <nav id="side-nav" class="musicdl-sidenav" aria-label="Main navigation">
-        <button id="nav-toggle" class="musicdl-sidenav-toggle" aria-label="Toggle navigation">☰</button>
-        <ul class="musicdl-sidenav-list">
-            <li><a href="/" class="musicdl-sidenav-link">Home</a></li>
-            <li><a href="/convert" class="musicdl-sidenav-link">Online Converter</a></li>
-            <li><a href="#about" class="musicdl-sidenav-link">About Me</a></li>
-        </ul>
-    </nav>
-    <section class="musicdl-hero">
-        <div class="musicdl-hero-content">
-            <div class="musicdl-logo">🎵</div>
-            <h1 class="musicdl-header">MusicDL Web</h1>
-            <p class="musicdl-desc">Download YouTube videos or playlists as <span class="text-indigo-600 font-semibold">MP3</span> or <span class="text-pink-500 font-semibold">MP4</span>.<br>Simple, fast, and beautiful.</p>
-        </div>
-    </section>
     <div class="musicdl-card">
-        <form action="/download" method="post" class="musicdl-form w-full">
+        <div class="musicdl-logo">🎵</div>
+        <h1 class="musicdl-header">MusicDL Web</h1>
+        <p class="musicdl-desc">Download YouTube videos or playlists as <span class="text-indigo-600 font-semibold">MP3</span> or <span class="text-pink-500 font-semibold">MP4</span>.<br>Simple, fast, and beautiful.</p>
+        <form id="musicdl-form" action="/download" method="post" class="musicdl-form w-full">
             <input type="text" name="youtube_url" placeholder="Paste YouTube video or playlist URL..." required aria-label="YouTube URL">
             <select name="format" aria-label="Select format">
                 <option value="mp3">MP3 (audio only)</option>
                 <option value="mp4">MP4 (video)</option>
             </select>
+            <div style="margin: 1em 0;">
+                <label><input type="radio" name="download_type" value="single" checked> Single Video</label>
+                <label style="margin-left: 1em;"><input type="radio" name="download_type" value="playlist"> Playlist</label>
+            </div>
             <button type="submit">Convert & Download</button>
         </form>
         <a href="/convert" class="musicdl-convert-link" aria-label="Go to Online Audio Converter">🎧 Online Audio Converter</a>
         <div class="musicdl-footer">&copy; 2024 MusicDL Web</div>
     </div>
-    <section id="about" class="musicdl-about">
-        <h2>About Me</h2>
-        <p>Hi! I'm the creator of MusicDL Web, passionate about making music accessible and easy to download for everyone. This project is open source and built with love using Python, FastAPI, and modern web technologies.</p>
-    </section>
+    <!-- Modal Overlay for Progress -->
+    <div id="progress-modal" class="musicdl-modal-overlay" style="display:none;" aria-modal="true" role="dialog" aria-labelledby="modal-title" aria-live="polite">
+        <div class="musicdl-modal-card">
+            <button id="close-modal-x" class="musicdl-modal-close" aria-label="Close modal">&times;</button>
+            <div class="musicdl-logo">⬇️</div>
+            <h2 class="musicdl-header" id="modal-title">Download Progress</h2>
+            <div class="musicdl-progress-container">
+                <div class="musicdl-progress-bar-bg">
+                    <div id="progress-bar" class="musicdl-progress-bar" style="width:0%"></div>
+                </div>
+                <div class="musicdl-progress-info" id="modal-status" aria-live="polite">
+                    <span id="percent">0%</span>
+                    <span id="status" style="margin-left: 1rem;">Queued...</span>
+                </div>
+                <div id="track-progress-info" class="musicdl-progress-info" style="display:none;font-size:1rem;font-weight:500;"></div>
+                <div class="musicdl-progress-bar-bg" id="overall-bar-bg" style="display:none;margin-top:0.5rem;">
+                    <div id="overall-progress-bar" class="musicdl-progress-bar" style="width:0%"></div>
+                </div>
+            </div>
+            <div id="spinner" class="musicdl-spinner" style="display: block;"></div>
+            <div class="musicdl-desc" id="details"></div>
+            <div class="musicdl-desc text-red-600 font-semibold mb-2 hidden" id="error"></div>
+            <a id="zip-link" href="#" class="musicdl-convert-link hidden" download>⬇️ Download All as ZIP</a>
+            <div id="track-list" class="musicdl-track-list"></div>
+            <a href="#" id="close-modal" class="musicdl-convert-link" style="margin-top:1.5rem;">Close</a>
+            <canvas id="confetti-canvas" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;display:none;"></canvas>
+        </div>
+    </div>
     <script>
     // Light/Dark mode toggle logic
     const toggle = document.getElementById('theme-toggle');
@@ -61,12 +77,200 @@
         localStorage.setItem('musicdl-theme', isDark ? 'dark' : 'light');
         setTheme(isDark ? 'dark' : 'light');
     };
-    // Collapsible side nav logic
-    const nav = document.getElementById('side-nav');
-    const navToggle = document.getElementById('nav-toggle');
-    navToggle.onclick = () => {
-        nav.classList.toggle('open');
+    // Modal/Overlay Progress Bar Logic
+    const form = document.getElementById('musicdl-form');
+    const modal = document.getElementById('progress-modal');
+    const closeModal = document.getElementById('close-modal');
+    const closeModalX = document.getElementById('close-modal-x');
+    const bar = document.getElementById('progress-bar');
+    const percent = document.getElementById('percent');
+    const status = document.getElementById('status');
+    const details = document.getElementById('details');
+    const error = document.getElementById('error');
+    const spinner = document.getElementById('spinner');
+    const zipLink = document.getElementById('zip-link');
+    const trackList = document.getElementById('track-list');
+    const confettiCanvas = document.getElementById('confetti-canvas');
+    const trackProgressInfo = document.getElementById('track-progress-info');
+    const overallBarBg = document.getElementById('overall-bar-bg');
+    const overallBar = document.getElementById('overall-progress-bar');
+    let pollInterval = null;
+    function showModal() {
+        modal.style.display = 'flex';
+        setTimeout(() => { modal.classList.add('show'); }, 10);
+    }
+    function hideModal() {
+        modal.classList.remove('show');
+        setTimeout(() => { modal.style.display = 'none'; }, 300);
+        if (pollInterval) clearInterval(pollInterval);
+    }
+    form.onsubmit = function(e) {
+        e.preventDefault();
+        // Reset modal
+        bar.style.width = '0%';
+        percent.textContent = '0%';
+        status.textContent = 'Queued...';
+        details.textContent = '';
+        error.textContent = '';
+        error.classList.add('hidden');
+        spinner.style.display = 'block';
+        zipLink.classList.add('hidden');
+        trackList.innerHTML = '';
+        confettiCanvas.style.display = 'none';
+        showModal();
+        // Submit form via AJAX
+        const formData = new FormData(form);
+        fetch('/download', {
+            method: 'POST',
+            body: formData,
+            headers: {'x-requested-with': 'XMLHttpRequest'}
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.task_id) {
+                pollProgress(data.task_id);
+                pollInterval = setInterval(() => pollProgress(data.task_id), 2000);
+            } else {
+                status.textContent = 'Error starting download.';
+                spinner.style.display = 'none';
+            }
+        });
     };
+    closeModal.onclick = function(e) {
+        e.preventDefault();
+        hideModal();
+    };
+    closeModalX.onclick = function(e) {
+        e.preventDefault();
+        hideModal();
+    };
+    function showConfetti() {
+        confettiCanvas.style.display = 'block';
+        const ctx = confettiCanvas.getContext('2d');
+        const W = confettiCanvas.width = confettiCanvas.offsetWidth;
+        const H = confettiCanvas.height = confettiCanvas.offsetHeight;
+        const confetti = Array.from({length: 80}, () => ({
+            x: Math.random() * W,
+            y: Math.random() * -H,
+            r: 6 + Math.random() * 8,
+            d: 8 + Math.random() * 8,
+            color: `hsl(${Math.random()*360},80%,60%)`,
+            tilt: Math.random() * 10 - 5
+        }));
+        let angle = 0;
+        function draw() {
+            ctx.clearRect(0,0,W,H);
+            angle += 0.01;
+            for (let i=0; i<confetti.length; i++) {
+                let c = confetti[i];
+                ctx.beginPath();
+                ctx.ellipse(c.x, c.y, c.r, c.r/2, c.tilt, 0, 2*Math.PI);
+                ctx.fillStyle = c.color;
+                ctx.fill();
+                c.y += Math.cos(angle + i) + 2 + c.d/10;
+                c.x += Math.sin(angle) * 2;
+                if (c.y > H) {
+                    c.x = Math.random() * W;
+                    c.y = -10;
+                }
+            }
+        }
+        let confettiAnim = setInterval(draw, 16);
+        setTimeout(() => {
+            clearInterval(confettiAnim);
+            confettiCanvas.style.display = 'none';
+        }, 2200);
+    }
+    function pollProgress(task_id) {
+        fetch(`/progress/${task_id}/status`)
+        .then(r => r.json())
+        .then(data => {
+            if (data.status === 'downloading') {
+                bar.style.width = (data.percent || 0) + '%';
+                percent.textContent = (data.percent || 0) + '%';
+                status.textContent = 'Downloading...';
+                details.textContent = data.details ? 'Now downloading: ' + data.details : '';
+                error.textContent = '';
+                error.classList.add('hidden');
+                spinner.style.display = 'block';
+                zipLink.classList.add('hidden');
+                trackList.innerHTML = '';
+                // Playlist per-track progress
+                if (data.current_track && data.total_tracks) {
+                    trackProgressInfo.style.display = 'flex';
+                    trackProgressInfo.textContent = `Track ${data.current_track} of ${data.total_tracks}` + (data.current_title ? `: ${data.current_title}` : '');
+                    overallBarBg.style.display = 'block';
+                    const overallPercent = Math.round((data.current_track-1) / data.total_tracks * 100);
+                    overallBar.style.width = overallPercent + '%';
+                } else {
+                    trackProgressInfo.style.display = 'none';
+                    overallBarBg.style.display = 'none';
+                }
+            } else if (data.status === 'done') {
+                bar.style.width = '100%';
+                percent.textContent = '100%';
+                status.textContent = data.is_playlist ? 'Playlist download complete! 🎉' : 'Download complete! 🎉';
+                details.textContent = data.is_playlist ? 'All tracks are ready.' : '';
+                error.textContent = '';
+                error.classList.add('hidden');
+                spinner.style.display = 'none';
+                if (data.is_playlist && data.zip_url) {
+                    zipLink.href = data.zip_url;
+                    zipLink.classList.remove('hidden');
+                } else {
+                    zipLink.classList.add('hidden');
+                }
+                if (data.is_playlist && data.downloaded_files && data.downloaded_files.length > 0) {
+                    trackList.innerHTML = '<div style="margin-top:1rem;font-weight:600;">Tracks:</div>' +
+                        data.downloaded_files.map(f => `<a href="/files/${encodeURIComponent(f)}" download class="musicdl-convert-link" style="display:block;margin-top:0.5rem;">🎵 ${f}</a>`).join('');
+                } else if (data.file_url) {
+                    trackList.innerHTML = `<a href="${data.file_url}" download class="musicdl-convert-link" style="display:block;margin-top:1rem;">⬇️ Download File</a>`;
+                } else {
+                    trackList.innerHTML = '';
+                }
+                trackProgressInfo.style.display = 'none';
+                overallBarBg.style.display = 'none';
+                showConfetti();
+                if (pollInterval) clearInterval(pollInterval);
+            } else if (data.status === 'queued') {
+                bar.style.width = '0%';
+                percent.textContent = '0%';
+                status.textContent = 'Queued...';
+                details.textContent = '';
+                error.textContent = '';
+                error.classList.add('hidden');
+                spinner.style.display = 'block';
+                zipLink.classList.add('hidden');
+                trackList.innerHTML = '';
+                trackProgressInfo.style.display = 'none';
+                overallBarBg.style.display = 'none';
+            } else if (data.status === 'error') {
+                bar.style.width = '0%';
+                percent.textContent = '0%';
+                status.textContent = 'Error!';
+                details.textContent = '';
+                error.textContent = data.error || 'An unknown error occurred.';
+                error.classList.remove('hidden');
+                spinner.style.display = 'none';
+                zipLink.classList.add('hidden');
+                trackList.innerHTML = '';
+                trackProgressInfo.style.display = 'none';
+                overallBarBg.style.display = 'none';
+                if (pollInterval) clearInterval(pollInterval);
+            } else {
+                status.textContent = 'Unknown status.';
+                details.textContent = '';
+                error.textContent = '';
+                error.classList.add('hidden');
+                spinner.style.display = 'none';
+                zipLink.classList.add('hidden');
+                trackList.innerHTML = '';
+                trackProgressInfo.style.display = 'none';
+                overallBarBg.style.display = 'none';
+                if (pollInterval) clearInterval(pollInterval);
+            }
+        });
+    }
     </script>
 </body>
 </html> 

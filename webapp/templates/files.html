@@ -7,22 +7,45 @@
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@3.4.1/dist/tailwind.min.css" rel="stylesheet">
 </head>
 <body class="bg-gradient-to-br from-blue-100 to-indigo-200 min-h-screen flex flex-col items-center justify-center">
-    <div class="bg-white/80 shadow-xl rounded-xl p-8 max-w-lg w-full mt-12">
-        <h1 class="text-2xl font-bold text-indigo-700 mb-4 text-center">Downloaded Files</h1>
-        {% if files %}
-        <ul class="divide-y divide-gray-200">
+    <button class="musicdl-toggle" id="theme-toggle" aria-label="Toggle light/dark mode">🌙</button>
+    <div class="musicdl-card">
+        <div class="musicdl-logo">📁</div>
+        <h1 class="musicdl-header">Your Downloads</h1>
+        <p class="musicdl-desc">Download your converted files below.<br>Files are automatically deleted every 30 minutes.</p>
+        <div class="musicdl-files-list">
             {% for file in files %}
-            <li class="py-3 flex items-center justify-between">
-                <span class="truncate">{{ file }}</span>
-                <a href="/files/{{ file }}" class="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-1 rounded transition text-sm" download>Download</a>
-            </li>
+                <div class="musicdl-file-item">
+                    <span>{{ file }}</span>
+                    <a href="/downloads/{{ file }}" download class="musicdl-convert-link" aria-label="Download {{ file }}">⬇️ Download</a>
+                </div>
+            {% else %}
+                <div class="musicdl-file-item">No files available.</div>
             {% endfor %}
-        </ul>
-        {% else %}
-        <p class="text-gray-600 text-center">No files downloaded yet.</p>
-        {% endif %}
-        <a href="/" class="block mt-8 text-indigo-600 hover:underline text-center">&larr; Back to Home</a>
+        </div>
+        <a href="/" class="musicdl-convert-link" aria-label="Back to Home">🏠 Back to Home</a>
+        <div class="musicdl-footer">&copy; 2024 MusicDL Web</div>
     </div>
-    <footer class="mt-10 text-gray-500 text-sm">&copy; 2024 MusicDL Web</footer>
+    <script>
+    // Light/Dark mode toggle logic
+    const toggle = document.getElementById('theme-toggle');
+    const body = document.body;
+    function setTheme(mode) {
+        if (mode === 'dark') {
+            body.classList.add('dark');
+            toggle.textContent = '☀️';
+        } else {
+            body.classList.remove('dark');
+            toggle.textContent = '🌙';
+        }
+    }
+    // Load theme from localStorage
+    const saved = localStorage.getItem('musicdl-theme');
+    setTheme(saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    toggle.onclick = () => {
+        const isDark = body.classList.toggle('dark');
+        localStorage.setItem('musicdl-theme', isDark ? 'dark' : 'light');
+        setTheme(isDark ? 'dark' : 'light');
+    };
+    </script>
 </body>
 </html> 

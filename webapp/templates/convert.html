@@ -13,21 +13,48 @@
     </script>
 </head>
 <body>
+    <button class="musicdl-toggle" id="theme-toggle" aria-label="Toggle light/dark mode">🌙</button>
     <div class="musicdl-card">
-        <div class="musicdl-logo">🔄</div>
-        <h1 class="musicdl-header">Convert Audio Files</h1>
-        <p class="musicdl-desc">Upload one or more audio files and convert them to your desired format.<br>Supported: mp3, m4a, flac, wav, opus, ogg, aac.</p>
-        <form action="/convert" method="post" enctype="multipart/form-data" class="musicdl-form w-full" onsubmit="showSpinner()">
-            <input type="file" name="files" multiple required accept=".mp3,.m4a,.flac,.wav,.opus,.ogg,.aac">
-            <select name="format">
-                {% for fmt in formats %}
-                <option value="{{ fmt }}">{{ fmt|upper }}</option>
-                {% endfor %}
+        <div class="musicdl-logo">🎧</div>
+        <h1 class="musicdl-header">Audio Converter</h1>
+        <p class="musicdl-desc">Convert your audio files to MP3, M4A, FLAC, WAV, OGG, AAC, and more.<br>Fast, free, and private.</p>
+        <form action="/convert" method="post" enctype="multipart/form-data" class="musicdl-form w-full">
+            <input type="file" name="files" multiple required aria-label="Select audio files">
+            <select name="format" aria-label="Select output format">
+                <option value="mp3">MP3</option>
+                <option value="m4a">M4A</option>
+                <option value="flac">FLAC</option>
+                <option value="wav">WAV</option>
+                <option value="ogg">OGG</option>
+                <option value="aac">AAC</option>
+                <option value="opus">OPUS</option>
             </select>
             <button type="submit">Convert</button>
         </form>
-        <div id="musicdl-spinner" class="musicdl-spinner hidden"></div>
+        <a href="/" class="musicdl-convert-link" aria-label="Back to Home">🏠 Back to Home</a>
         <div class="musicdl-footer">&copy; 2024 MusicDL Web</div>
     </div>
+    <script>
+    // Light/Dark mode toggle logic
+    const toggle = document.getElementById('theme-toggle');
+    const body = document.body;
+    function setTheme(mode) {
+        if (mode === 'dark') {
+            body.classList.add('dark');
+            toggle.textContent = '☀️';
+        } else {
+            body.classList.remove('dark');
+            toggle.textContent = '🌙';
+        }
+    }
+    // Load theme from localStorage
+    const saved = localStorage.getItem('musicdl-theme');
+    setTheme(saved || (window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'));
+    toggle.onclick = () => {
+        const isDark = body.classList.toggle('dark');
+        localStorage.setItem('musicdl-theme', isDark ? 'dark' : 'light');
+        setTheme(isDark ? 'dark' : 'light');
+    };
+    </script>
 </body>
 </html> 
